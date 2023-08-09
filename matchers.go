@@ -152,7 +152,8 @@ var EventMatchers = []EventMatcher{
 	},
 	{
 		match: func(e *ConfigEvent) bool {
-			return strings.Contains(strings.ToLower(e.Change), "sync lag is changed")
+			return strings.Contains(strings.ToLower(e.Change), "sync lag is changed") ||
+				strings.Contains(strings.ToLower(e.Change), "connections limit is changed")
 		},
 		direction: func(e *ConfigEvent) string {
 			if strings.Contains(strings.ToLower(e.Change), "active - true") {
@@ -184,9 +185,15 @@ var EventMatchers = []EventMatcher{
 		match: func(e *ConfigEvent) bool {
 			return strings.HasPrefix(strings.ToLower(e.Change), "module")
 		},
-		Direction: "up",
-		Icon:      "code-square",
-		Title:     "Modules",
+		direction: func(e *ConfigEvent) string {
+			if strings.Contains(strings.ToLower(e.Change), "loaded") {
+				return "up"
+			} else {
+				return "NA"
+			}
+		},
+		Icon:  "code-square",
+		Title: "Modules",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -226,6 +233,14 @@ var EventMatchers = []EventMatcher{
 		},
 		Icon:  "speedometer",
 		Title: "Throughput",
+	},
+	{
+		match: func(e *ConfigEvent) bool {
+			return strings.HasPrefix(strings.ToLower(e.Change), "eviction policy changed")
+		},
+		Icon:      "door-open",
+		Title:     "Eviction",
+		Direction: "NA",
 	},
 	{
 		match: func(*ConfigEvent) bool {

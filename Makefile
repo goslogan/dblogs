@@ -11,7 +11,7 @@ macos-intel:
 	gzip macos-intel-dbconfig
 
 macos-arm:
-	GOOARCH=arm64 GOOS=darwin go build -ldflags="-s -w" -o macos-arm-dbconfig; \
+	GOOARCH=arm64 GOOS=darwin go build -ldflags="-s -w" -o macos-arm64-dbconfig; \
 	gzip macos-arm64-dbconfig
 
 linux:
