@@ -1,0 +1,83 @@
+<!doctype html>
+<html>
+
+    <head>
+        <title>{{.Title}}</title>
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+<link href="https://cdn.datatables.net/v/dt/jq-3.7.0/dt-1.13.6/b-2.4.1/b-colvis-2.4.1/fc-4.3.0/datatables.min.css" rel="stylesheet">
+        <style>
+            table {
+                font-family: "Helvetica Neue",HelveticaNeue,Helvetica,Arial,sans-serif
+            }
+            .dir-NA {
+                font-size: 1.5rem;
+                color: silver;
+            }
+            .dir-up {
+                font-size: 1.5rem;
+                color: green;
+            }
+            .dir-down {
+                font-size: 1.5rem;
+                color: red;
+            }
+            .date {
+                white-space: nowrap
+            }
+        </style>
+    </head>
+    <body>
+
+    {{$databases := .Databases}}
+    <table id="config" class="stripe cell-border hover row-border order-column" style="width:100%">
+    <thead>
+        <tr>
+            <th>Time</th>
+            {{ range $databases }}
+                <th>{{.}}</th>
+            {{end}}
+        </tr>
+    </thead>
+    {{range $time, $dbs := .Timeline}}
+
+        <tr>
+            <th class="date">{{$time}}</th>
+            {{range $databases}}
+                <td>
+                        {{range Events $dbs .}}
+                            <i class="bi-{{.Icon}} dir-{{.Direction}}"  
+                                data-bs-toggle="popover" 
+                                title="{{.Change}}" 
+                                data-bs-content="{{.Change}}"></i>
+                        {{end}}
+                </td>
+            {{end}}
+        </tr>
+
+    {{end}}
+    </table>
+
+ 
+<script src="https://cdn.datatables.net/v/dt/jq-3.7.0/dt-1.13.6/b-2.4.1/b-colvis-2.4.1/fc-4.3.0/datatables.min.js"></script>
+    <script>
+        $(document).ready(function () {
+            $('#config').DataTable({
+                paging: false,
+                scrollCollapse: true,
+                scrollY: '75vh',
+                scrollX: true,
+                fixedColumns: true,
+                searching: false,
+                rowReorder: true, 
+                columnDefs: [
+                    { orderable: true, className: 'reorder', targets: 0 },
+                    { orderable: false, targets: '_all' }
+                ]
+            });
+        });
+    </script>
+    
+    </body> 
+
+</html>
+

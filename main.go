@@ -2,23 +2,30 @@ package main
 
 import (
 	"encoding/csv"
-	"fmt"
 	"io"
 	"log"
 	"os"
 	"sort"
+	"text/template"
 	"time"
 
 	"github.com/dimchansky/utfbom"
+
+	_ "embed"
+
 	"github.com/gocarina/gocsv"
 	"github.com/spf13/pflag"
 )
 
-var accountIds []uint
-var subscriptionIds []uint
-var sources []string
-var databases []string
-var dbSort bool
+//go:embed report.template
+var renderTemplate string
+
+var (
+	accountIds, subscriptionIds []uint
+	sources, databases          []string
+	dbSort, timeline, hourly    bool
+	output                      string
+)
 
 type sourceInfo struct {
 	reader         io.Reader
@@ -31,7 +38,14 @@ type ConfigEvent struct {
 	TimeStamp time.Time `csv:"date"`
 	Database  string    `csv:"database name"`
 	Change    string    `csv:"description"`
-	Activity  string    `csv:"activity"`
+	Icon      string    `csv:"-"`
+	Title     string    `csv:"-"`
+	Direction string    `csv:"-"`
+}
+
+type ConfigLoadEvent struct {
+	ConfigEvent
+	Activity string `csv:"activity"`
 }
 
 type ConfigEvents []ConfigEvent
@@ -42,7 +56,7 @@ func main() {
 	events := []*ConfigEvent{}
 
 	for _, source := range sources {
-		sEvents := []*ConfigEvent{}
+		sEvents := []*ConfigLoadEvent{}
 
 		errHandler := func(e *csv.ParseError) bool {
 			log.Printf("Parse error in %s - %v", source.name, e)
@@ -67,13 +81,18 @@ func main() {
 					}
 				}
 				if ok {
-					events = append(events, event)
+					parsedEvent := Match(&ConfigEvent{
+						Database:  event.Database,
+						Change:    event.Change,
+						TimeStamp: event.TimeStamp,
+					})
+					events = append(events, parsedEvent)
 				}
 			}
 		}
 	}
 
-	if len(events) > 1 || dbSort {
+	if len(events) > 1 || dbSort || timeline {
 		sort.Slice(events, func(i, j int) bool {
 			if dbSort && events[i].Database != events[j].Database {
 				return events[i].Database < events[j].Database
@@ -83,18 +102,11 @@ func main() {
 		})
 	}
 
-	for _, event := range events {
-		fmt.Printf("%s: %s: %s\n", event.TimeStamp.Format(time.RFC3339), event.Database, event.Change)
+	if timeline {
+		renderTimeline(events)
+	} else {
+		dumpEvents(events)
 	}
-
-}
-
-func init() {
-	pflag.BoolVarP(&dbSort, "dbsort", "b", false, "sort by database name before timestamp")
-	pflag.StringSliceVarP(&sources, "file", "f", []string{}, "list of csv files to process")
-	pflag.UintSliceVarP(&accountIds, "accounts", "a", []uint{0}, "account ids matching sources")
-	pflag.UintSliceVarP(&subscriptionIds, "subscriptions", "s", []uint{0}, "subscription ids matching sources")
-	pflag.StringSliceVarP(&databases, "databases", "d", []string{}, "report only these named databases")
 }
 
 func initSources() []sourceInfo {
@@ -133,12 +145,121 @@ func initSources() []sourceInfo {
 
 }
 
-func (c ConfigEvents) Len() int      { return len(c) }
-func (c ConfigEvents) Swap(i, j int) { c[i], c[j] = c[j], c[i] }
-func (c ConfigEvents) Less(i, j int) bool {
-	if dbSort && c[i].Database != c[j].Database {
-		return c[i].Database < c[j].Database
+func dumpEvents(events []*ConfigEvent) {
+	var writer io.Writer
+	var err error
+	if output == "" {
+		writer = os.Stdout
 	} else {
-		return c[i].TimeStamp.Before(c[j].TimeStamp)
+		writer, err = os.Create(output)
+		if err != nil {
+			log.Fatalf("Unable to write to output file %s - %v", output, err)
+		}
 	}
+
+	err = gocsv.Marshal(events, writer)
+	if err != nil {
+		log.Fatalf("Unable to write to output file %s - %v", output, err)
+	}
+}
+
+func renderTimeline(events []*ConfigEvent) {
+	var writer io.Writer
+	var err error
+	var timeFormat = "2006-01-02"
+
+	if hourly {
+		timeFormat = "2006-01-02 15:04"
+	}
+
+	timeline := make(map[string]map[string][]*ConfigEvent)
+	databases := make(map[string]string)
+
+	for _, event := range events {
+		t := event.TimeStamp.Format(timeFormat)
+		databases[event.Database] = event.Database
+		if event.Database == "" {
+			databases[event.Database] = "Subscription"
+		}
+		if _, ok := timeline[t]; !ok {
+			timeline[t] = make(map[string][]*ConfigEvent)
+		}
+		timeline[t][event.Database] = append(timeline[t][event.Database], event)
+	}
+
+	tmpl, err := template.New("render").Funcs(map[string]any{
+		"MaxRowSpan": MaxRowSpan,
+		"RowSpan":    RowSpan,
+		"Format":     Format,
+		"Events":     Events,
+	}).Parse(renderTemplate)
+
+	if err != nil {
+		log.Fatalf("unable to parse output template - %v", err)
+	}
+
+	if output == "" {
+		writer = os.Stdout
+	} else {
+		writer, err = os.Create(output)
+		if err != nil {
+			log.Fatalf("Unable to write to output file %s - %v", output, err)
+		}
+	}
+
+	data := map[string]interface{}{
+		"Timeline":  timeline,
+		"Title":     "Configuration Timeline",
+		"Databases": databases,
+	}
+	err = tmpl.Execute(writer, data)
+
+	if err != nil {
+		log.Fatalf("unable to execute output template - %v", err)
+	}
+}
+
+// Get the maximum rowspan for the whole row (used on the timeline header)
+func MaxRowSpan(row map[string][]*ConfigEvent) int {
+	var maxEntries = 0
+	for _, events := range row {
+		if len(events) > maxEntries {
+			maxEntries = len(events)
+		}
+	}
+	return maxEntries
+}
+
+// Get the size of the empty row to add at the end of any db data to make it up
+// to MaxRowSpan
+func RowSpan(events []*ConfigEvent, maxEntries int) int {
+	return len(events) - maxEntries
+}
+
+// Format a date/time.
+func Format(t time.Time) string {
+	return t.Format("01 Jan 2006")
+}
+
+// Get the events for a db at a time.
+func Events(databases map[string][]*ConfigEvent, database string) []*ConfigEvent {
+	if events, ok := databases[database]; !ok {
+		return []*ConfigEvent{}
+	} else {
+		sort.Slice(events, func(i, j int) bool {
+			return events[i].TimeStamp.Before(events[j].TimeStamp)
+		})
+		return events
+	}
+}
+
+func init() {
+	pflag.BoolVarP(&dbSort, "dbsort", "b", false, "sort by database name before timestamp")
+	pflag.StringSliceVarP(&sources, "file", "f", []string{}, "list of csv files to process")
+	pflag.UintSliceVarP(&accountIds, "accounts", "a", []uint{0}, "account ids matching sources")
+	pflag.UintSliceVarP(&subscriptionIds, "subscriptions", "s", []uint{0}, "subscription ids matching sources")
+	pflag.StringSliceVarP(&databases, "databases", "d", []string{}, "report only these named databases")
+	pflag.BoolVarP(&timeline, "timeline", "t", false, "generate a timeline graph for each database")
+	pflag.StringVarP(&output, "output", "o", "", "output file for CSV dump or HTML timeline")
+	pflag.BoolVarP(&hourly, "hourly", "h", false, "aggregate hourly instead of daily")
 }
