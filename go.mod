@@ -1,4 +1,4 @@
-module github.com/goslogan/subconfig
+module github.com/goslogan/dbconfig
 
 go 1.20
 
