@@ -25,6 +25,7 @@ var (
 	sources, databases          []string
 	dbSort, timeline, hourly    bool
 	output                      string
+	title                       string
 )
 
 type sourceInfo struct {
@@ -47,6 +48,8 @@ type ConfigLoadEvent struct {
 	ConfigEvent
 	Activity string `csv:"activity"`
 }
+
+const ROWLEN = 5
 
 type ConfigEvents []ConfigEvent
 
@@ -188,10 +191,7 @@ func renderTimeline(events []*ConfigEvent) {
 	}
 
 	tmpl, err := template.New("render").Funcs(map[string]any{
-		"MaxRowSpan": MaxRowSpan,
-		"RowSpan":    RowSpan,
-		"Format":     Format,
-		"Events":     Events,
+		"Events": Events,
 	}).Parse(renderTemplate)
 
 	if err != nil {
@@ -209,36 +209,15 @@ func renderTimeline(events []*ConfigEvent) {
 
 	data := map[string]interface{}{
 		"Timeline":  timeline,
-		"Title":     "Configuration Timeline",
+		"Title":     title,
 		"Databases": databases,
+		"Legend":    legend(),
 	}
 	err = tmpl.Execute(writer, data)
 
 	if err != nil {
 		log.Fatalf("unable to execute output template - %v", err)
 	}
-}
-
-// Get the maximum rowspan for the whole row (used on the timeline header)
-func MaxRowSpan(row map[string][]*ConfigEvent) int {
-	var maxEntries = 0
-	for _, events := range row {
-		if len(events) > maxEntries {
-			maxEntries = len(events)
-		}
-	}
-	return maxEntries
-}
-
-// Get the size of the empty row to add at the end of any db data to make it up
-// to MaxRowSpan
-func RowSpan(events []*ConfigEvent, maxEntries int) int {
-	return len(events) - maxEntries
-}
-
-// Format a date/time.
-func Format(t time.Time) string {
-	return t.Format("01 Jan 2006")
 }
 
 // Get the events for a db at a time.
@@ -253,13 +232,37 @@ func Events(databases map[string][]*ConfigEvent, database string) []*ConfigEvent
 	}
 }
 
+// Legend - return a function which returns the legend in order and by rows.
+func legend() [][]map[string]string {
+	rows := len(EventMatchers) / ROWLEN
+	if len(EventMatchers)%ROWLEN != 0 {
+		rows++
+	}
+
+	legend := make([][]map[string]string, rows)
+
+	for n := 0; n < rows; n++ {
+		legend[n] = make([]map[string]string, ROWLEN)
+		for m := 0; m < ROWLEN; m++ {
+			p := (n * ROWLEN) + m
+			if p >= len(EventMatchers) {
+				break
+			}
+			legend[n][m] = map[string]string{"Title": EventMatchers[p].Title, "Icon": EventMatchers[p].Icon}
+		}
+	}
+
+	return legend
+}
+
 func init() {
 	pflag.BoolVarP(&dbSort, "dbsort", "b", false, "sort by database name before timestamp")
 	pflag.StringSliceVarP(&sources, "file", "f", []string{}, "list of csv files to process")
 	pflag.UintSliceVarP(&accountIds, "accounts", "a", []uint{0}, "account ids matching sources")
 	pflag.UintSliceVarP(&subscriptionIds, "subscriptions", "s", []uint{0}, "subscription ids matching sources")
 	pflag.StringSliceVarP(&databases, "databases", "d", []string{}, "report only these named databases")
-	pflag.BoolVarP(&timeline, "timeline", "t", false, "generate a timeline graph for each database")
+	pflag.BoolVarP(&timeline, "timeline", "l", false, "generate a timeline graph for each database")
 	pflag.StringVarP(&output, "output", "o", "", "output file for CSV dump or HTML timeline")
 	pflag.BoolVarP(&hourly, "hourly", "h", false, "aggregate hourly instead of daily")
+	pflag.StringVarP(&title, "title", "t", "Configuration Timeline", "the title for the timeline report")
 }

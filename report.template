@@ -6,7 +6,7 @@
         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
 <link href="https://cdn.datatables.net/v/dt/jq-3.7.0/dt-1.13.6/b-2.4.1/b-colvis-2.4.1/fc-4.3.0/datatables.min.css" rel="stylesheet">
         <style>
-            table {
+            body {
                 font-family: "Helvetica Neue",HelveticaNeue,Helvetica,Arial,sans-serif
             }
             .dir-NA {
@@ -24,9 +24,34 @@
             .date {
                 white-space: nowrap
             }
+            ul.legend li {
+                display:inline;
+                margin-right: 2rem;
+                background-color: rgb(200,200,200);
+            }
+            ul.legend li span {
+                position: relative;
+                left: 1rem;
+                background-color: rgb(200, 200, 200);
+            }
         </style>
     </head>
     <body>
+
+    <h1>{{.Title}}</h1>
+
+    <table id="legend" class="stripe cell-border hover row-border order-column" style="width:100%">
+    {{ range $r := .Legend }}
+        <tr>
+            {{ range $r }}
+            <td><i class="bi-{{.Icon}} dir-NA"></i></td>
+            <td>{{.Title}}</td>
+            {{ end }}
+        </tr>
+    {{ end }}
+    </ul>
+
+    <h4>Hover over the icons to see the change detail</h4>
 
     {{$databases := .Databases}}
     <table id="config" class="stripe cell-border hover row-border order-column" style="width:100%">
@@ -45,10 +70,7 @@
             {{range $databases}}
                 <td>
                         {{range Events $dbs .}}
-                            <i class="bi-{{.Icon}} dir-{{.Direction}}"  
-                                data-bs-toggle="popover" 
-                                title="{{.Change}}" 
-                                data-bs-content="{{.Change}}"></i>
+                            <i class="bi-{{.Icon}} dir-{{.Direction}}" title="{{.Change}}"> </i>
                         {{end}}
                 </td>
             {{end}}
@@ -57,11 +79,13 @@
     {{end}}
     </table>
 
+
  
 <script src="https://cdn.datatables.net/v/dt/jq-3.7.0/dt-1.13.6/b-2.4.1/b-colvis-2.4.1/fc-4.3.0/datatables.min.js"></script>
     <script>
         $(document).ready(function () {
             $('#config').DataTable({
+                order: [[0, 'desc']],
                 paging: false,
                 scrollCollapse: true,
                 scrollY: '75vh',

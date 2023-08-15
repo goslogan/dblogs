@@ -14,7 +14,8 @@ Parameters are as follows:
   -h, --hourly                aggregate hourly instead of daily
   -o, --output string         output file for CSV dump or HTML timeline
   -s, --subscriptions uints   subscription ids matching sources (default [0])
-  -t, --timeline              generate a timeline graph for each database
+  -l, --timeline              generate a timeline graph for each database
+  -t, --title                 the title for the timeline report
 ```
 
 Icons are used to visualise changes in the HTML output; hover over them to see the detail of the change. Icons are highlighted in green for enabled or increased configurations, red for disabled or decreased and grey for simple changes (e.g. backup path changed)>
