@@ -33,7 +33,7 @@ var EventMatchers = []EventMatcher{
 			}
 		},
 		Icon:  "sign-intersection-side",
-		Title: "Network",
+		Title: "Network Change",
 	},
 	{ // match memory size change
 		match: func(e *ConfigEvent) bool {
@@ -58,7 +58,7 @@ var EventMatchers = []EventMatcher{
 			}
 		},
 		Icon:  "memory",
-		Title: "Memory Limit",
+		Title: "Memory Limit Change",
 	},
 	{ // match db activated/deleted
 		match: func(e *ConfigEvent) bool {
@@ -78,7 +78,8 @@ var EventMatchers = []EventMatcher{
 				return "database-fill-slash"
 			}
 		},
-		Title: "Database",
+		Icon:  "database-fill",
+		Title: "Database Activation/Deletions",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -86,7 +87,7 @@ var EventMatchers = []EventMatcher{
 		},
 		Direction: "NA",
 		Icon:      "database-fill-check",
-		Title:     "Database",
+		Title:     "Database Change",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -99,7 +100,7 @@ var EventMatchers = []EventMatcher{
 			return "up"
 		},
 		Icon:  "shield-exclamation",
-		Title: "Persistence",
+		Title: "Persistence Change",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -107,6 +108,7 @@ var EventMatchers = []EventMatcher{
 		},
 		Icon:      "hdd-rack-fill",
 		Direction: "up",
+		Title:     "Clustering enabled",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -120,7 +122,7 @@ var EventMatchers = []EventMatcher{
 			}
 		},
 		Icon:  "share-fill",
-		Title: "Replication",
+		Title: "Replication Change",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -134,26 +136,13 @@ var EventMatchers = []EventMatcher{
 			}
 		},
 		Icon:  "symmetry-horizontal",
-		Title: "Sync",
-	},
-	{
-		match: func(e *ConfigEvent) bool {
-			return strings.Contains(strings.ToLower(e.Change), "alert is changed")
-		},
-		direction: func(e *ConfigEvent) string {
-			if strings.Contains(strings.ToLower(e.Change), "active - true") {
-				return "up"
-			} else {
-				return "down"
-			}
-		},
-		Icon:  "envelope",
-		Title: "Alerts",
+		Title: "Sync Change",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
 			return strings.Contains(strings.ToLower(e.Change), "sync lag is changed") ||
-				strings.Contains(strings.ToLower(e.Change), "connections limit is changed")
+				strings.Contains(strings.ToLower(e.Change), "connections limit is changed") ||
+				strings.Contains(strings.ToLower(e.Change), "alert is changed")
 		},
 		direction: func(e *ConfigEvent) string {
 			if strings.Contains(strings.ToLower(e.Change), "active - true") {
@@ -207,7 +196,7 @@ var EventMatchers = []EventMatcher{
 			}
 		},
 		Icon:  "regex",
-		Title: "Cluster Rule",
+		Title: "Cluster Rules",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -232,7 +221,7 @@ var EventMatchers = []EventMatcher{
 			}
 		},
 		Icon:  "speedometer",
-		Title: "Throughput",
+		Title: "Throughput Change",
 	},
 	{
 		match: func(e *ConfigEvent) bool {
@@ -250,7 +239,7 @@ var EventMatchers = []EventMatcher{
 			return "NA"
 		},
 		Icon:  "info-circle-fill",
-		Title: "General",
+		Title: "Other Change",
 	},
 }
 
