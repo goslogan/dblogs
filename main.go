@@ -18,7 +18,7 @@ import (
 )
 
 //go:embed report.template
-var renderTemplate string
+var defaultTemplate string
 
 var (
 	accountIds, subscriptionIds []uint
@@ -26,6 +26,8 @@ var (
 	dbSort, timeline, hourly    bool
 	output                      string
 	title                       string
+	firstDate, lastDate         string
+	templatePath                string
 )
 
 type sourceInfo struct {
@@ -58,6 +60,26 @@ func main() {
 	sources := initSources()
 	events := []*ConfigEvent{}
 
+	endTime, _ := time.ParseDuration("23h59m59s")
+
+	startDate := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Date(3000, 1, 1, 0, 0, 0, 0, time.UTC)
+
+	var err error
+	if firstDate != "" {
+		if startDate, err = time.Parse(time.DateOnly, firstDate); err != nil {
+			log.Fatalf("unable to parse '%s' as an ISO date", firstDate)
+		}
+	}
+
+	if lastDate != "" {
+		if endDate, err = time.Parse(time.DateOnly, lastDate); err != nil {
+			log.Fatalf("unable to parse '%s' as an ISO date", lastDate)
+		}
+
+		endDate = endDate.Add(endTime)
+	}
+
 	for _, source := range sources {
 		sEvents := []*ConfigLoadEvent{}
 
@@ -72,7 +94,7 @@ func main() {
 		}
 
 		for _, event := range sEvents {
-			if event.Activity == "Configuration" {
+			if event.Activity == "Configuration" && event.TimeStamp.After(startDate) && event.TimeStamp.Before(endDate) {
 				ok := true
 				if len(databases) > 0 {
 					ok = false
@@ -190,9 +212,7 @@ func renderTimeline(events []*ConfigEvent) {
 		timeline[t][event.Database] = append(timeline[t][event.Database], event)
 	}
 
-	tmpl, err := template.New("render").Funcs(map[string]any{
-		"Events": Events,
-	}).Parse(renderTemplate)
+	tmpl, err := initTemplate()
 
 	if err != nil {
 		log.Fatalf("unable to parse output template - %v", err)
@@ -255,14 +275,31 @@ func legend() [][]map[string]string {
 	return legend
 }
 
+func initTemplate() (*template.Template, error) {
+
+	var templateSource = defaultTemplate
+
+	if templatePath != "" {
+		if content, err := os.ReadFile(templatePath); err != nil {
+			log.Fatalf("unable to read template from '%s' - %v", templatePath, err)
+		} else {
+			templateSource = string(content)
+		}
+	}
+	return template.New("render").Funcs(map[string]any{"Events": Events}).Parse(templateSource)
+}
+
 func init() {
 	pflag.BoolVarP(&dbSort, "dbsort", "b", false, "sort by database name before timestamp")
-	pflag.StringSliceVarP(&sources, "file", "f", []string{}, "list of csv files to process")
+	pflag.StringSliceVarP(&sources, "files", "f", []string{}, "list of csv files to process")
 	pflag.UintSliceVarP(&accountIds, "accounts", "a", []uint{0}, "account ids matching sources")
 	pflag.UintSliceVarP(&subscriptionIds, "subscriptions", "s", []uint{0}, "subscription ids matching sources")
 	pflag.StringSliceVarP(&databases, "databases", "d", []string{}, "report only these named databases")
-	pflag.BoolVarP(&timeline, "timeline", "l", false, "generate a timeline graph for each database")
+	pflag.BoolVarP(&timeline, "timeline", "t", false, "generate a timeline graph for each database")
 	pflag.StringVarP(&output, "output", "o", "", "output file for CSV dump or HTML timeline")
 	pflag.BoolVarP(&hourly, "hourly", "h", false, "aggregate hourly instead of daily")
-	pflag.StringVarP(&title, "title", "t", "Configuration Timeline", "the title for the timeline report")
+	pflag.StringVarP(&title, "title", "i", "Configuration Timeline", "the title for the timeline report")
+	pflag.StringVarP(&firstDate, "from", "F", "", "First date to include in the output (yyyy-mm-dd)")
+	pflag.StringVarP(&lastDate, "to", "T", "", "Last date to include in the output (yyyy-mm-dd)")
+	pflag.StringVarP(&templatePath, "template", "p", "", "Path to a custom template for output")
 }
