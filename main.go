@@ -21,20 +21,17 @@ import (
 var defaultTemplate string
 
 var (
-	accountIds, subscriptionIds []uint
-	sources, databases          []string
-	dbSort, timeline, hourly    bool
-	output                      string
-	title                       string
-	firstDate, lastDate         string
-	templatePath                string
+	sources, databases       []string
+	dbSort, timeline, hourly bool
+	output                   string
+	title                    string
+	firstDate, lastDate      string
+	templatePath             string
 )
 
 type sourceInfo struct {
-	reader         io.Reader
-	accountId      uint
-	subscriptionId uint
-	name           string
+	reader io.Reader
+	name   string
 }
 
 type ConfigEvent struct {
@@ -143,24 +140,13 @@ func initSources() []sourceInfo {
 
 	if len(sources) == 0 {
 		sourceReaders[0].reader = utfbom.SkipOnly(os.Stdin)
-		sourceReaders[0].accountId = accountIds[0]
-		sourceReaders[0].subscriptionId = subscriptionIds[0]
 		sourceReaders[0].name = "STDIN"
 	} else {
 		for n, source := range sources {
-			var a, s uint
-			if n >= len(accountIds) {
-				a = accountIds[n]
-			}
-			if n >= len(subscriptionIds) {
-				s = subscriptionIds[n]
-			}
 			if reader, err := os.Open(source); err != nil {
 				log.Fatalf("Unable to open %s - %v", source, err)
 			} else {
 				sourceReaders[n].reader = utfbom.SkipOnly(reader)
-				sourceReaders[n].accountId = a
-				sourceReaders[n].subscriptionId = s
 				sourceReaders[n].name = source
 			}
 		}
@@ -292,8 +278,6 @@ func initTemplate() (*template.Template, error) {
 func init() {
 	pflag.BoolVarP(&dbSort, "dbsort", "b", false, "sort by database name before timestamp")
 	pflag.StringSliceVarP(&sources, "files", "f", []string{}, "list of csv files to process")
-	pflag.UintSliceVarP(&accountIds, "accounts", "a", []uint{0}, "account ids matching sources")
-	pflag.UintSliceVarP(&subscriptionIds, "subscriptions", "s", []uint{0}, "subscription ids matching sources")
 	pflag.StringSliceVarP(&databases, "databases", "d", []string{}, "report only these named databases")
 	pflag.BoolVarP(&timeline, "timeline", "t", false, "generate a timeline graph for each database")
 	pflag.StringVarP(&output, "output", "o", "", "output file for CSV dump or HTML timeline")

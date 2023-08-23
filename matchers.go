@@ -17,7 +17,7 @@ type EventMatcher struct {
 }
 
 var subnetRegex = regexp.MustCompile(`(?i)Source ip/subnet (?:deleted|added). Ip/subnet - ([\d./]+)`)
-var sizeRegex = regexp.MustCompile(`(?i)Memory Limit changed from (\d+) ([a-zA-Z]+) to (\d+) ([a-zA-Z]+)`)
+var sizeRegex = regexp.MustCompile(`(?i)Memory Limit changed from ([\d.]+) ([a-zA-Z]+) to ([\d.]+) ([a-zA-Z]+)`)
 var throuphputRegex = regexp.MustCompile(`(?i)Database Throughput was changed from (\d+) ops/sec to (\d+) ops/sec`)
 
 var EventMatchers = []EventMatcher{
@@ -232,6 +232,14 @@ var EventMatchers = []EventMatcher{
 		Direction: "NA",
 	},
 	{
+		match: func(e *ConfigEvent) bool {
+			return strings.HasPrefix(strings.ToLower(e.Change), "default redis user")
+		},
+		Icon:      "lock-fill",
+		Title:     "Default Password Change",
+		Direction: "NA",
+	},
+	{
 		match: func(*ConfigEvent) bool {
 			return true
 		},
@@ -264,16 +272,16 @@ func Match(e *ConfigEvent) *ConfigEvent {
 	return e
 }
 
-func convertSize(num, scale string) (uint, error) {
-	base, err := strconv.Atoi(num)
+func convertSize(num, scale string) (float32, error) {
+	base, err := strconv.ParseFloat(num, 32)
 	if err != nil {
 		return 0, err
 	}
 	if strings.ToLower(scale) == "gb" {
-		return uint(base) * 1000, nil
+		return float32(base * 1000), nil
 	}
 	if strings.ToLower(scale) == "mb" {
-		return uint(base), nil
+		return float32(base), nil
 	}
-	return uint(base), nil
+	return float32(base), nil
 }
