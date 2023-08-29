@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-//go:embed report.template
+//go:embed report.html
 var defaultTemplate string
 
 var (
