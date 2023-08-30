@@ -1,4 +1,4 @@
-module github.com/goslogan/dbconfig
+module github.com/goslogan/dblogs
 
 go 1.20
 

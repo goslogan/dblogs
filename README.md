@@ -1,16 +1,16 @@
-# DBConfig
+# DBLogs
 
-A script to generate a visual representation of a Redis Cloud account's changes over time. The input to the script is one or more downloads from the <em>Logs</em> tab of the Redis Cloud UI.
+`dblogs` is a script to generate a visual representation of a Redis Cloud account's changes over time. The input to the script is one or more downloads from the <em>Logs</em> tab of the Redis Cloud UI.
 
 ## Installation
 
-Download from https://github.com/goslogan/dbconfig/releases - binaries for all our OSes are present. If on MacOS you will need to tell the security system to allow it to run.
+Download from https://github.com/goslogan/dblogs/releases - binaries for all our OSes are present. If on MacOS you will need to tell the security system to allow it to run.
 
 If you have golang installed you can do
 
 ```
-git clone https://github.com/goslogan/dbconfig.git
-cd dbconfig
+git clone https://github.com/goslogan/dblogs.git
+cd dblogs
 go install
 ```
 As long as you have golang installed correctly that will install to ${HOME}/go/bin which may or may not be on your PATH. 
@@ -48,18 +48,18 @@ Input is read from standard input if not otherwise specified and written to stan
 Generate a timeline HTML file with hourly aggregation
 
 ```
-dbconfig -f system_log.csv -o customer.html --timeline --hourly
+dblogs -f system_log.csv -o customer.html --timeline --hourly
 ```
 
 Generate a cleansed CSV sorted by database.
 
 ```
-cat system_log.csv | dbconfig -b
+cat system_log.csv | dblogs -b
 ```
 
 
 Generate a timeline for a single subscription including changes in 2022 
 
 ```
-dbconfig -f system_long.csv -o customer.html --timeline --subscriptions 98765321 --from=01-01-2022 --to=31-12-2022
+dblogs -f system_long.csv -o customer.html --timeline --subscriptions 98765321 --from=01-01-2022 --to=31-12-2022
 ```
