@@ -5,12 +5,38 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
+
+	"github.com/goslogan/rcutils"
 )
+
+type DBInfo struct {
+	Database      string
+	Created       time.Time
+	Deleted       time.Time
+	InitialOps    int
+	InitialSizeMB int
+	Ambiguous     bool
+	Info          *rcutils.DBStatusInfo
+	Events        []*ConfigEvent
+}
+
+type ConfigEvent struct {
+	TimeStamp time.Time `csv:"date"`
+	Database  string    `csv:"database name"`
+	Change    string    `csv:"description"`
+	Icon      string    `csv:"-"`
+	Title     string    `csv:"-"`
+	Direction string    `csv:"-"`
+	From      int       `csv:"-"`
+	To        int       `csv:"-"`
+}
 
 type EventMatcher struct {
 	match     func(*ConfigEvent) bool
 	direction func(*ConfigEvent) string
 	icon      func(*ConfigEvent) string
+	values    func(*ConfigEvent) (int, int)
 	Icon      string
 	Title     string
 	Direction string
@@ -39,19 +65,25 @@ var EventMatchers = []EventMatcher{
 		match: func(e *ConfigEvent) bool {
 			return sizeRegex.MatchString(e.Change)
 		},
-		direction: func(e *ConfigEvent) string {
+		values: func(e *ConfigEvent) (int, int) {
 			matches := sizeRegex.FindStringSubmatch(e.Change)
+
 			from, err := convertSize(matches[1], matches[2])
 			if err != nil {
 				log.Printf("unable to extract sizes from %s", e.Change)
-				return "NA"
+				return 0, 0
 			}
 			to, err := convertSize(matches[3], matches[4])
 			if err != nil {
 				log.Printf("unable to extract sizes from %s", e.Change)
-				return "NA"
+				return 0, 0
 			}
-			if to > from {
+
+			return from, to
+		},
+		direction: func(e *ConfigEvent) string {
+
+			if e.To > e.From {
 				return "up"
 			} else {
 				return "down"
@@ -202,22 +234,28 @@ var EventMatchers = []EventMatcher{
 		match: func(e *ConfigEvent) bool {
 			return throuphputRegex.MatchString(e.Change)
 		},
-		direction: func(e *ConfigEvent) string {
+		values: func(e *ConfigEvent) (int, int) {
 			matches := throuphputRegex.FindStringSubmatch(e.Change)
 			from, err := strconv.Atoi(matches[1])
 			if err != nil {
 				log.Printf("Unable to convert ops/sec of %s to integer - %v", matches[1], err)
-				return "NA"
+				return 0, 0
 			}
 			to, err := strconv.Atoi(matches[2])
 			if err != nil {
 				log.Printf("Unable to convert ops/sec of %s to integer - %v", matches[2], err)
-				return "NA"
+				return 0, 0
 			}
-			if to > from {
+			return from, to
+		},
+		direction: func(e *ConfigEvent) string {
+
+			if e.To > e.From {
 				return "up"
-			} else {
+			} else if e.From > e.To {
 				return "down"
+			} else {
+				return "NA"
 			}
 		},
 		Icon:  "speedometer",
@@ -240,6 +278,66 @@ var EventMatchers = []EventMatcher{
 		Direction: "NA",
 	},
 	{
+		match: func(e *ConfigEvent) bool {
+			return strings.HasPrefix(strings.ToLower(e.Change), "vpc peering")
+		},
+		direction: func(e *ConfigEvent) string {
+			if strings.Contains(strings.ToLower(e.Change), "delete") {
+				return "down"
+			} else if strings.Contains(strings.ToLower(e.Change), "initiated") {
+				return "up"
+			} else {
+				return "NA"
+			}
+		},
+		Icon:  "link-45deg",
+		Title: "VPC Peering",
+	},
+	{
+		match: func(e *ConfigEvent) bool {
+			return strings.Contains(strings.ToLower(e.Change), "added infrastructure")
+		},
+		direction: func(e *ConfigEvent) string {
+			return "up"
+		},
+		Icon:  "cloud-plus",
+		Title: "Infrastructure",
+	},
+	{
+		match: func(e *ConfigEvent) bool {
+			return strings.Contains(strings.ToLower(e.Change), "api secret key")
+		},
+		direction: func(e *ConfigEvent) string {
+			if strings.Contains(strings.ToLower(e.Change), "assigned") {
+				return "up"
+			}
+			return "down"
+		},
+		Icon:  "key",
+		Title: "API Key",
+	},
+	{
+		match: func(e *ConfigEvent) bool {
+			return strings.Contains(strings.ToLower(e.Change), "api access")
+		},
+		direction: func(e *ConfigEvent) string {
+			if strings.Contains(strings.ToLower(e.Change), "enabled") {
+				return "up"
+			}
+			return "down"
+		},
+		Icon:  "key-fill",
+		Title: "API Access",
+	},
+	{
+		match: func(e *ConfigEvent) bool {
+			return strings.Contains(strings.ToLower(e.Change), "oss cluster")
+		},
+		Direction: "up",
+		Icon:      "boxes",
+		Title:     "OSS Cluster API",
+	},
+	{
 		match: func(*ConfigEvent) bool {
 			return true
 		},
@@ -251,9 +349,41 @@ var EventMatchers = []EventMatcher{
 	},
 }
 
+func DBInfoFromRCutils(d *rcutils.DBConfigInfo) *DBInfo {
+	i :=
+		DBInfo{
+			Database:      d.Database,
+			Created:       d.Created,
+			Deleted:       d.Deleted,
+			InitialOps:    d.InitialOps,
+			InitialSizeMB: d.InitialSizeMB,
+			Ambiguous:     d.Ambiguous,
+			Info:          d.Info,
+			Events:        make([]*ConfigEvent, len(d.Events)),
+		}
+
+	for n, e := range d.Events {
+		i.Events[n] = ConfigEventFromLogEvent(e)
+	}
+
+	return &i
+}
+
+func ConfigEventFromLogEvent(l *rcutils.LogEvent) *ConfigEvent {
+	e := ConfigEvent{
+		TimeStamp: l.TimeStamp,
+		Database:  l.Database,
+		Change:    l.Change,
+	}
+	return Match(&e)
+}
+
 func Match(e *ConfigEvent) *ConfigEvent {
 	for _, m := range EventMatchers {
 		if m.match(e) {
+			if m.values != nil {
+				e.From, e.To = m.values(e)
+			}
 			if m.icon != nil {
 				e.Icon = m.icon(e)
 			} else {
@@ -272,16 +402,16 @@ func Match(e *ConfigEvent) *ConfigEvent {
 	return e
 }
 
-func convertSize(num, scale string) (float32, error) {
+func convertSize(num, scale string) (int, error) {
 	base, err := strconv.ParseFloat(num, 32)
 	if err != nil {
 		return 0, err
 	}
 	if strings.ToLower(scale) == "gb" {
-		return float32(base * 1000), nil
+		return int(base * 1000), nil
 	}
 	if strings.ToLower(scale) == "mb" {
-		return float32(base), nil
+		return int(base), nil
 	}
-	return float32(base), nil
+	return int(base), nil
 }
